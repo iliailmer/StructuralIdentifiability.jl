@@ -19,3 +19,4 @@ TestSetExtensions = "98d24dd4-01ad-11ea-1b02-c9a08f80db04"
 
 [compat]
 MacroTools = "0.5"
+Nemo = "0.24"
