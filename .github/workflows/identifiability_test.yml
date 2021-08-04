@@ -1,0 +1,31 @@
+# this will run the gb test lots of times to get a broken example
+
+name: "Run Identifiability Test"
+on:
+  pull_request:
+  push:
+    paths-ignore:
+    - 'README.md'
+    - 'Dockerfile'
+    - '.gitignore'
+jobs:
+  run-tests:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        julia-version: ['1']
+        julia-arch: [x64]
+        os: [macos-latest, ubuntu-latest]
+
+    steps:
+      - name: "Checkout"
+        uses: actions/checkout@v2
+      - name: "Setup Julia"
+        uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.julia-version }}
+          arch: ${{ matrix.julia-arch }} 
+      - name: "Build Package"
+        uses: julia-actions/julia-buildpkg@latest
+      - name: "Run tests"
+        run: julia test/runidtest.jl identifiability
