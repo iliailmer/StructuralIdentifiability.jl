@@ -37,13 +37,13 @@ export set_parameter_values
 export find_ioequations, find_identifiable_functions
 
 # exporting to other formats
-export print_for_maple, print_for_DAISY
+export print_for_maple, print_for_DAISY, print_for_COMBOS, print_for_GenSSI
 
 # function for creating linear compartment models
 export linear_compartment_model
 
 # structure for storing the io-equations for doing reductions further
-export PBRepresentation, diffreduce
+export PBRepresentation, diffreduce, io_switch!, pseudodivision
 
 # would be great to merge with the Julia logger
 _runtime_logger = Dict()
@@ -106,8 +106,9 @@ function assess_identifiability(ode::ODE{P}, funcs_to_check::Array{<:RingElem,1}
         @debug "Bound: $bound"
     end
 
+    loc_id = [local_result[each] for each in funcs_to_check]
     locally_identifiable = Array{Any,1}()
-    for (loc, f) in zip(local_result, funcs_to_check)
+    for (loc, f) in zip(loc_id, funcs_to_check)
         if loc
             push!(locally_identifiable, f)
         end
@@ -118,25 +119,36 @@ function assess_identifiability(ode::ODE{P}, funcs_to_check::Array{<:RingElem,1}
     @info "Global identifiability assessed in $runtime seconds"
     _runtime_logger[:glob_time] = runtime
 
-    result = Array{Symbol,1}()
+    result = Dict{Any, Symbol}()
     glob_ind = 1
     for i in 1:length(funcs_to_check)
-        if !local_result[i]
-            push!(result, :nonidentifiable)
+        if !local_result[funcs_to_check[i]]
+            result[funcs_to_check[i]] = :nonidentifiable
         else
             if global_result[glob_ind]
-                push!(result, :globally)
+                result[funcs_to_check[i]] = :globally
             else
-                push!(result, :locally)
+                result[funcs_to_check[i]] = :locally
             end
             glob_ind += 1
         end
     end
 
-    return result
+    return Dict(result)
 end
 
+"""
+    assess_identifiability(ode::ModelingToolkit.ODESystem; measured_quantities=Array{ModelingToolkit.Equation}[], funcs_to_check=[], p = 0.99)
+Input:
+- `ode` - the ModelingToolkit.ODESystem object that defines the model
+- `measured_quantities` - the output functions of the model
+- `funcs_to_check` - functions of parameters for which to check the identifiability
+- `p` - probability of correctness.
 
+Assesses identifiability (both local and global) of a given ODE model (parameters detected automatically). The result is guaranteed to be correct with the probability
+at least `p`.
+
+"""
 function assess_identifiability(ode::ModelingToolkit.ODESystem; measured_quantities=Array{ModelingToolkit.Equation}[], funcs_to_check=[], p = 0.99)
     if length(measured_quantities)==0 
         if any(ModelingToolkit.isoutput(eq.lhs) for eq in ModelingToolkit.equations(ode))
@@ -152,11 +164,9 @@ function assess_identifiability(ode::ModelingToolkit.ODESystem; measured_quantit
     ode, syms, gens_ = PreprocessODE(ode, measured_quantities)
     out_dict = Dict{Num,Symbol}()
     funcs_to_check_ = [eval_at_nemo(each, Dict(syms .=> gens_)) for each in funcs_to_check]
-    tmp = Dict(param => res for (param, res) in zip(funcs_to_check_, assess_identifiability(ode, funcs_to_check_, p)))
+    result = assess_identifiability(ode, funcs_to_check_, p)
     nemo2mtk = Dict(funcs_to_check_ .=> funcs_to_check)
-    for (func, res) in pairs(tmp)
-        out_dict[nemo2mtk[func]] = res
-    end
+    out_dict = Dict(nemo2mtk[param] => result[param] for param in funcs_to_check_)
     return out_dict
 end
 

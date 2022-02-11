@@ -338,15 +338,11 @@ end
 
 #------------------------------------------------------------------------------
 """
-    function PreprocessODE(de::ModelingToolkit.ODESystem, inputs)
+    function PreprocessODE(de::ModelingToolkit.ODESystem, measured_quantities::Array{ModelingToolkit.Equation})
     
 Input:
-- `diff_eqs` - array of ModelingToolkit differential equations
-- `out_eqs` - array of output equations
-- `states` - array of state variables
-- `outputs` - array of output function names
-- `inputs` - array of input function names
-- `parameters` - array of parameter names
+- `de` - ModelingToolkit.ODESystem, a system for identifiability query
+- `measured_quantities` - array of output functions
 
 Output: 
 - `ODE` object containing required data for identifiability assessment
@@ -356,7 +352,7 @@ function PreprocessODE(de::ModelingToolkit.ODESystem, measured_quantities::Array
     diff_eqs = filter(eq->!(ModelingToolkit.isoutput(eq.lhs)), ModelingToolkit.equations(de))
     y_functions = [each.lhs for each in measured_quantities]
     inputs = filter(v->ModelingToolkit.isinput(v), ModelingToolkit.states(de))
-    state_vars = filter(s->!(ModelingToolkit.isinput(s)), ModelingToolkit.states(de))
+    state_vars = filter(s->!(ModelingToolkit.isinput(s) || ModelingToolkit.isoutput(s)), ModelingToolkit.states(de))
     params = ModelingToolkit.parameters(de)
     t = ModelingToolkit.arguments(measured_quantities[1].lhs)[1]
     params_from_measured_quantities = ModelingToolkit.parameters(ModelingToolkit.ODESystem(measured_quantities, t, name=:DataSeries))
